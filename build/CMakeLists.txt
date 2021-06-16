@@ -24,7 +24,6 @@ option ( UINT_ESPECIALLY "using custom ulong" OFF )
 option ( USING_LUAJIT "using luajit" OFF )
 option ( GC64 "using gc64" OFF )
 option ( LUAC_COMPATIBLE_FORMAT "compatible format" OFF )
-option ( PBC "using pbc" OFF )
 
 find_path(XLUA_PROJECT_DIR NAMES SConstruct
     PATHS 
@@ -40,68 +39,6 @@ endif()
 
 set(LUA_SRC_PATH lua-${LUA_VERSION}/src)
 set(LUAJIT_SRC_PATH luajit-2.1.0b3/src)
-
-#begin lua-rapidjson
-set (RAPIDJSON_SRC lua-rapidjson/source/rapidjson.cpp)
-set_property(
-	SOURCE ${RAPIDJSON_SRC}
-	APPEND
-	PROPERTY COMPILE_DEFINITIONS
-	LUA_LIB
-)
-list(APPEND THIRDPART_INC  lua-rapidjson/include)
-set (THIRDPART_SRC ${THIRDPART_SRC} ${RAPIDJSON_SRC})
-#end lua-rapidjson
-
-if (NOT PBC)
-	#begin lua-profobuf
-	set (LPB_SRC 
-		lua-protobuf/pb.c
-	)
-	set_property(
-		SOURCE ${LPB_SRC}
-		APPEND
-		PROPERTY COMPILE_DEFINITIONS
-		LUA_LIB
-	)
-	list(APPEND THIRDPART_INC lua-protobuf)
-	set (THIRDPART_SRC ${THIRDPART_SRC} ${LPB_SRC})
-	#end lua-protobuf
-else()
-	#begin pbc
-	set (PBC_SRC 
-		pbc/src/alloc.c
-		pbc/src/array.c
-		pbc/src/array.c
-		pbc/src/bootstrap.c
-		pbc/src/context.c
-		pbc/src/decode.c
-		pbc/src/map.c
-		pbc/src/pattern.c
-		pbc/src/proto.c
-		pbc/src/register.c
-		pbc/src/rmessage.c
-		pbc/src/stringpool.c
-		pbc/src/varint.c
-		pbc/src/wmessage.c
-	)
-
-	if (USING_LUAJIT)
-		list(APPEND PBC_SRC pbc pbc/binding/lua/pbc-lua.c)
-	else ()
-		list(APPEND PBC_SRC pbc pbc/binding/lua53/pbc-lua53.c)
-	endif ()
-
-	set_property(
-		SOURCE ${PBC_SRC}
-		APPEND
-		PROPERTY COMPILE_DEFINITIONS
-		LUA_LIB
-	)
-	list(APPEND THIRDPART_INC pbc pbc/src)
-	set (THIRDPART_SRC ${THIRDPART_SRC} ${PBC_SRC})
-	#end pbc
-endif ()
 
 #begin lpeg
 set ( LPEG_SRC
@@ -121,19 +58,17 @@ list(APPEND THIRDPART_INC  lpeg)
 set (THIRDPART_SRC ${THIRDPART_SRC} ${LPEG_SRC})
 #end lpeg
 
-#begin FFI
-if (NOT USING_LUAJIT)
-	set (FFI_SRC ffi/parser.c ffi/ctype.c ffi/ffi.c)
-	set_property(
-		SOURCE ${FFI_SRC}
-		APPEND
-		PROPERTY COMPILE_DEFINITIONS
-		LUA_LIB
-	)
-	list(APPEND THIRDPART_INC  ffi)
-	set (THIRDPART_SRC ${THIRDPART_SRC} ${FFI_SRC})
-endif ()
-#end FFI
+#begin sproto
+set (SPROTO_SRC sproto/sproto.c sproto/lsproto.c)
+set_property(
+    SOURCE ${SPROTO_SRC}
+    APPEND
+    PROPERTY COMPILE_DEFINITIONS
+    LUA_LIB
+)
+list(APPEND THIRDPART_INC sproto)
+set (THIRDPART_SRC ${THIRDPART_SRC} ${SPROTO_SRC})
+#end sproto
 
 if (USING_LUAJIT)
 	

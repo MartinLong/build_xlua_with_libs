@@ -527,9 +527,17 @@ namespace CSObjectWrapEditor
             if (mb is FieldInfo && (mb as FieldInfo).FieldType.IsPointer) return true;
             if (mb is PropertyInfo && (mb as PropertyInfo).PropertyType.IsPointer) return true;
 
+            foreach(var filter in memberFilters)
+            {
+                if (filter(mb))
+                {
+                    return true;
+                }
+            }
+
             foreach (var exclude in BlackList)
             {
-                if (mb.DeclaringType.FullName == exclude[0] && mb.Name == exclude[1])
+                if (mb.DeclaringType.ToString() == exclude[0] && mb.Name == exclude[1])
                 {
                     return true;
                 }
@@ -544,11 +552,19 @@ namespace CSObjectWrapEditor
 
             //指针目前不支持，先过滤
             if (mb.GetParameters().Any(pInfo => pInfo.ParameterType.IsPointer)) return true;
-            if (mb is MethodInfo && (mb as MethodInfo).ReturnType.IsPointer) return false;
+            if (mb is MethodInfo && (mb as MethodInfo).ReturnType.IsPointer) return true;
+
+            foreach (var filter in memberFilters)
+            {
+                if (filter(mb))
+                {
+                    return true;
+                }
+            }
 
             foreach (var exclude in BlackList)
             {
-                if (mb.DeclaringType.FullName == exclude[0] && mb.Name == exclude[1])
+                if (mb.DeclaringType.ToString() == exclude[0] && mb.Name == exclude[1])
                 {
                     var parameters = mb.GetParameters();
                     if (parameters.Length != exclude.Count - 2)
@@ -559,7 +575,7 @@ namespace CSObjectWrapEditor
 
                     for (int i = 0; i < parameters.Length; i++)
                     {
-                        if (parameters[i].ParameterType.FullName != exclude[i + 2])
+                        if (parameters[i].ParameterType.ToString() != exclude[i + 2])
                         {
                             paramsMatch = false;
                             break;
@@ -618,10 +634,19 @@ namespace CSObjectWrapEditor
             
             GenOne(null, (type, type_info) =>
             {
+                var type2fields = luaenv.NewTable();
+                foreach(var _type in types)
+                    type2fields.Set(_type, _type.GetFields(BindingFlags.Public | BindingFlags.Static).Where(x => !isMemberInBlackList(x)).ToArray());
+                type_info.Set("type2fields", type2fields);
                 type_info.Set("types", types.ToList());
             }, templateRef.LuaEnumWrap, textWriter);
 
             textWriter.Close();
+        }
+
+        static string NonmalizeName(string name)
+        {
+            return name.Replace("+", "_").Replace(".", "_").Replace("`", "_").Replace("&", "_").Replace("[", "_").Replace("]", "_").Replace(",", "_");
         }
 
         static void GenInterfaceBridge(IEnumerable<Type> types, string save_path)
@@ -630,8 +655,7 @@ namespace CSObjectWrapEditor
             {
                 if (!wrap_type.IsInterface) continue;
 
-                string filePath = save_path + wrap_type.ToString().Replace("+", "").Replace(".", "")
-                    .Replace("`", "").Replace("&", "").Replace("[", "").Replace("]", "").Replace(",", "") + "Bridge.cs";
+                string filePath = save_path + NonmalizeName(wrap_type.ToString()) + "Bridge.cs";
                 StreamWriter textWriter = new StreamWriter(filePath, false, Encoding.UTF8);
                 GenOne(wrap_type, (type, type_info) =>
                 {
@@ -839,7 +863,8 @@ namespace CSObjectWrapEditor
                     }
                 }
 
-                return true;
+                var lastPos = xParams.Length - 1;
+                return lastPos < 0 || xParams[lastPos].IsParamArray == yParams[lastPos].IsParamArray;
             }
             public int GetHashCode(MethodInfoSimulation obj)
             {
@@ -927,6 +952,7 @@ namespace CSObjectWrapEditor
             }
 
             var delegates_groups = types.Select(delegate_type => makeMethodInfoSimulation(delegate_type.GetMethod("Invoke")))
+                .Where(d => d.DeclaringType.FullName != null)
                 .Concat(hotfxDelegates)
                 .GroupBy(d => d, comparer).Select((group) => new { Key = group.Key, Value = group.ToList()});
             GenOne(typeof(DelegateBridge), (type, type_info) =>
@@ -973,8 +999,7 @@ namespace CSObjectWrapEditor
 
             foreach (var wrap_type in types)
             {
-                string filePath = save_path + wrap_type.ToString().Replace("+", "").Replace(".", "")
-                    .Replace("`", "").Replace("&", "").Replace("[", "").Replace("]", "").Replace(",", "") + "Wrap.cs";
+                string filePath = save_path + NonmalizeName(wrap_type.ToString()) + "Wrap.cs";
                 StreamWriter textWriter = new StreamWriter(filePath, false, Encoding.UTF8);
                 if (wrap_type.IsEnum)
                 {
@@ -1090,12 +1115,23 @@ namespace CSObjectWrapEditor
 
             string filePath = GeneratorConfig.common_path + "XLuaGenAutoRegister.cs";
             StreamWriter textWriter = new StreamWriter(filePath, false, Encoding.UTF8);
-            var extension_methods = from t in ReflectionUse
+
+            var lookup = LuaCallCSharp.Distinct().ToDictionary(t => t);
+
+            var extension_methods_from_lcs = (from t in LuaCallCSharp
                                     where isDefined(t, typeof(ExtensionAttribute))
                                     from method in t.GetMethods(BindingFlags.Static | BindingFlags.Public)
-                                    where isDefined(method, typeof(ExtensionAttribute))
+                                    where isDefined(method, typeof(ExtensionAttribute)) && !isObsolete(method)
                                     where !method.ContainsGenericParameters || isSupportedGenericMethod(method)
-                                    select makeGenericMethodIfNeeded(method);
+                                    select makeGenericMethodIfNeeded(method))
+                                    .Where(method => !lookup.ContainsKey(method.GetParameters()[0].ParameterType));
+
+            var extension_methods = (from t in ReflectionUse
+                                     where isDefined(t, typeof(ExtensionAttribute))
+                                     from method in t.GetMethods(BindingFlags.Static | BindingFlags.Public)
+                                     where isDefined(method, typeof(ExtensionAttribute)) && !isObsolete(method)
+                                     where !method.ContainsGenericParameters || isSupportedGenericMethod(method)
+                                     select makeGenericMethodIfNeeded(method)).Concat(extension_methods_from_lcs);
             GenOne(typeof(DelegateBridgeBase), (type, type_info) =>
             {
 #if GENERIC_SHARING
@@ -1253,6 +1289,8 @@ namespace CSObjectWrapEditor
 
         public static List<string> assemblyList = null;
 
+        public static List<Func<MemberInfo, bool>> memberFilters = null;
+
         static void AddToList(List<Type> list, Func<object> get, object attr)
         {
             object obj = get();
@@ -1365,6 +1403,10 @@ namespace CSObjectWrapEditor
             {
                 BlackList.AddRange(get_cfg() as List<List<string>>);
             }
+            if (isDefined(test, typeof(BlackListAttribute)) && typeof(Func<MemberInfo, bool>).IsAssignableFrom(cfg_type))
+            {
+                memberFilters.Add(get_cfg() as Func<MemberInfo, bool>);
+            }
 
             if (isDefined(test, typeof(AdditionalPropertiesAttribute))
                         && (typeof(Dictionary<Type, List<string>>)).IsAssignableFrom(cfg_type))
@@ -1439,6 +1481,8 @@ namespace CSObjectWrapEditor
 #else
             assemblyList = new List<string>();
 #endif
+            memberFilters = new List<Func<MemberInfo, bool>>();
+
             foreach (var t in check_types)
             {
                 MergeCfg(t, null, () => t);
@@ -1604,6 +1648,13 @@ namespace CSObjectWrapEditor
         [MenuItem("XLua/Generate Code", false, 1)]
         public static void GenAll()
         {
+#if UNITY_2018 && (UNITY_EDITOR_WIN || UNITY_EDITOR_OSX)
+            if (File.Exists("./Tools/MonoBleedingEdge/bin/mono.exe"))
+            {
+                GenUsingCLI();
+                return;
+            }
+#endif
             var start = DateTime.Now;
             Directory.CreateDirectory(GeneratorConfig.common_path);
             GetGenConfig(XLua.Utils.GetAllTypes());
@@ -1620,6 +1671,63 @@ namespace CSObjectWrapEditor
             Debug.Log("finished! use " + (DateTime.Now - start).TotalMilliseconds + " ms");
             AssetDatabase.Refresh();
         }
+
+#if UNITY_EDITOR_OSX || UNITY_EDITOR_WIN
+        public static void GenUsingCLI()
+        {
+#if UNITY_EDITOR_OSX
+            var monoPath = "./Tools/MonoBleedingEdge/bin/mono";
+#else
+            var monoPath = "./Tools/MonoBleedingEdge/bin/mono.exe";
+#endif
+
+            var args = new List<string>()
+            {
+                "./Tools/XLuaGenerate.exe",
+                "./Library/ScriptAssemblies/Assembly-CSharp.dll",
+                "./Library/ScriptAssemblies/Assembly-CSharp-Editor.dll",
+                GeneratorConfig.common_path
+            };
+
+            var searchPaths = new List<string>();
+            foreach (var path in
+                (from asm in AppDomain.CurrentDomain.GetAssemblies() select asm.ManifestModule.FullyQualifiedName)
+                 .Distinct())
+            {
+                try
+                {
+                    searchPaths.Add(Path.GetDirectoryName(path));
+                }
+                catch { }
+            }
+            args.AddRange(searchPaths.Distinct());
+
+            System.Diagnostics.Process process = new System.Diagnostics.Process();
+            process.StartInfo.FileName = monoPath;
+            process.StartInfo.Arguments = "\"" + string.Join("\" \"", args.ToArray()) + "\"";
+            process.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+            process.StartInfo.RedirectStandardOutput = true;
+            process.StartInfo.RedirectStandardError = true;
+            process.StartInfo.UseShellExecute = false;
+            process.StartInfo.CreateNoWindow = true;
+            process.Start();
+
+            while (!process.StandardError.EndOfStream)
+            {
+                Debug.LogError(process.StandardError.ReadLine());
+            }
+
+            while (!process.StandardOutput.EndOfStream)
+            {
+                Debug.Log(process.StandardOutput.ReadLine());
+            }
+
+            process.WaitForExit();
+            GetGenConfig(XLua.Utils.GetAllTypes());
+            callCustomGen();
+            AssetDatabase.Refresh();
+        }
+#endif
 
         [MenuItem("XLua/Clear Generated Code", false, 2)]
         public static void ClearAll()
