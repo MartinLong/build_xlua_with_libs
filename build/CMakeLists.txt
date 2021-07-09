@@ -70,6 +70,90 @@ list(APPEND THIRDPART_INC sproto)
 set (THIRDPART_SRC ${THIRDPART_SRC} ${SPROTO_SRC})
 #end sproto
 
+#begin lua-seri
+set (SERI_SRC lua-seri/lua-seri.c)
+set_property(
+    SOURCE ${SERI_SRC}
+    APPEND
+    PROPERTY COMPILE_DEFINITIONS
+    LUA_LIB
+)
+list(APPEND THIRDPART_INC lua-seri)
+set (THIRDPART_SRC ${THIRDPART_SRC} ${SERI_SRC})
+#end lua-seri
+
+#begin lua-cjson
+set (CJSON_SRC lua-cjson/lua_cjson.c lua-cjson/strbuf.c lua-cjson/fpconv.c)
+set_property(
+    SOURCE ${CJSON_SRC}
+    APPEND
+    PROPERTY COMPILE_DEFINITIONS
+    LUA_LIB
+)
+list(APPEND THIRDPART_INC lua-cjson)
+set (THIRDPART_SRC ${THIRDPART_SRC} ${CJSON_SRC})
+#end lua-cjson
+
+#begin socket
+set (SOCKET_SRC lib/lsocket.c lib/lsocket.h)
+set_property(
+    SOURCE ${SOCKET_SRC}
+    APPEND
+    PROPERTY COMPILE_DEFINITIONS
+    LUA_LIB
+)
+list(APPEND THIRDPART_INC lib)
+set (THIRDPART_SRC ${THIRDPART_SRC} ${SOCKET_SRC})
+#end socket
+
+#begin lrc4
+set (RC4_SRC lib/lrc4.c lib/rc4.c lib/lrc4.h lib/rc4.h)
+set_property(
+    SOURCE ${RC4_SRC}
+    APPEND
+    PROPERTY COMPILE_DEFINITIONS
+    LUA_LIB
+)
+list(APPEND THIRDPART_INC lib)
+set (THIRDPART_SRC ${THIRDPART_SRC} ${RC4_SRC})
+#end lrc4
+
+#begin crypt
+set (CRYPT_SRC lib/lcrypt.c)
+set_property(
+    SOURCE ${CRYPT_SRC}
+    APPEND
+    PROPERTY COMPILE_DEFINITIONS
+    LUA_LIB
+)
+list(APPEND THIRDPART_INC lib)
+set (THIRDPART_SRC ${THIRDPART_SRC} ${CRYPT_SRC})
+#end crypt
+
+#begin lkcp
+set (LKCP_SRC lkcp/lkcp.c lkcp/ikcp.c)
+set_property(
+    SOURCE ${LKCP_SRC}
+    APPEND
+    PROPERTY COMPILE_DEFINITIONS
+    LUA_LIB
+)
+list(APPEND THIRDPART_INC lkcp)
+set (THIRDPART_SRC ${THIRDPART_SRC} ${LKCP_SRC})
+#end lkcp
+
+#begin timer
+set (TIMER_SRC lib/timer.c)
+set_property(
+    SOURCE ${TIMER_SRC}
+    APPEND
+    PROPERTY COMPILE_DEFINITIONS
+    LUA_LIB
+)
+list(APPEND THIRDPART_INC lib)
+set (THIRDPART_SRC ${THIRDPART_SRC} ${TIMER_SRC})
+#end timer
+
 if (USING_LUAJIT)
 	
     if (APPLE AND NOT IOS AND NOT ANDROID)
