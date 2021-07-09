@@ -1,7 +1,9 @@
 xLua常用库集成
 =====
 
-本库在原作者的工程基础上，把编译的库换成了以下库：
+本库在原作者的工程基础上，把编译的库换成了以下库
+
+且暂不支持jit编译，因为sproto库目前在jit下编译会报错。
 
 ## sproto
 
@@ -18,7 +20,7 @@ xLua默认集成库。
 
 ## 如何使用
 
-* 到[自动编译](https://github.com/chexiongsheng/build_xlua_with_libs/actions)下载你希望使用的版本（lua53,lua54, luajit），解压覆盖Unity工程Assets下Plugins目录，注意是覆盖，别删除后拷
+* 到[自动编译](https://github.com/MartinLong/build_xlua_with_libs/actions)下载你希望使用的版本（lua53,lua54, luajit），解压覆盖Unity工程Assets下Plugins目录，注意是覆盖，别删除后拷
 * 把LibsTestProj/Assets下的BuildInInit.cs和Resources目录放到Unity工程Assets下
 * 库的初始化看实例：LibsTestProj/Assets/Helloworld/Helloworld.cs
 
