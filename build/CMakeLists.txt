@@ -83,6 +83,18 @@ set (THIRDPART_SRC ${THIRDPART_SRC} ${SERI_SRC})
 #end lua-seri
 
 #begin lua-cjson
+if(WIN32)
+    # Windows sprintf()/strtod() handle NaN/inf differently. Not supported.
+    add_definitions(-DDISABLE_INVALID_NUMBERS)
+endif()
+
+if(MSVC)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    add_definitions(-Dinline=__inline)
+    add_definitions(-Dsnprintf=_snprintf)
+    add_definitions(-Dstrncasecmp=_strnicmp)
+endif()
+
 set (CJSON_SRC lua-cjson/lua_cjson.c lua-cjson/strbuf.c lua-cjson/fpconv.c)
 set_property(
     SOURCE ${CJSON_SRC}
